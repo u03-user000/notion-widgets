@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 16px;
+  }
+
+  .card {
+    background: #ffc8d8;
+    border-radius: 20px;
+    border: none;
+    padding: 24px 28px;
+    width: 300px;
+    text-align: center;
+  }
+
+  .title {
+    font-size: 13px;
+    color: #fff;
+    letter-spacing: 0.08em;
+    margin-bottom: 18px;
+    font-weight: 500;
+  }
+
+  .time-display {
+    font-size: 54px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-shadow: 0 2px 8px rgba(192,67,110,0.18);
+  }
+
+  .time-display.done {
+    color: #fff0f5;
+  }
+
+  .progress-wrap {
+    background: rgba(255,255,255,0.35);
+    border-radius: 99px;
+    height: 6px;
+    margin: 14px 0 20px;
+    overflow: hidden;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: #fff;
+    border-radius: 99px;
+    width: 100%;
+    transition: width 1s linear;
+  }
+
+  .set-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .set-row label {
+    font-size: 12px;
+    color: #fff;
+  }
+
+  .set-row input[type="number"] {
+    width: 48px;
+    padding: 4px 6px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #c0436e;
+    text-align: center;
+    background: rgba(255,255,255,0.85);
+    outline: none;
+    font-weight: 600;
+  }
+
+  .set-row input[type="number"]:focus {
+    background: #fff;
+  }
+
+  .set-row span {
+    font-size: 12px;
+    color: #fff;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 50px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 9px 18px;
+    transition: opacity 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+  .btn-start {
+    background: #fff;
+    color: #d4547e;
+    flex: 1;
+  }
+
+  .btn-start:hover:not(:disabled) { background: #fff0f5; }
+
+  .btn-pause {
+    background: rgba(255,255,255,0.3);
+    color: #fff;
+    flex: 1;
+    border: 1.5px solid rgba(255,255,255,0.6);
+  }
+
+  .btn-pause:hover:not(:disabled) { background: rgba(255,255,255,0.45); }
+
+  .btn-reset {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.5);
+    padding: 9px 14px;
+  }
+
+  .btn-reset:hover:not(:disabled) { background: rgba(255,255,255,0.35); }
+
+  .status {
+    font-size: 11px;
+    color: #fff;
+    margin-top: 14px;
+    min-height: 16px;
+    letter-spacing: 0.05em;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="title">&#x23F1; timer</div>
+
+  <div class="time-display" id="display">00:00</div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress"></div>
+  </div>
+
+  <div class="set-row">
+    <label>時間</label>
+    <input type="number" id="inp-min" value="25" min="0" max="99">
+    <span>分</span>
+    <input type="number" id="inp-sec" value="0" min="0" max="59">
+    <span>秒</span>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btn-start">スタート</button>
+    <button class="btn btn-pause" id="btn-pause" disabled>一時停止</button>
+    <button class="btn btn-reset" id="btn-reset" title="リセット">&#x21BA;</button>
+  </div>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+  const display = document.getElementById('display');
+  const progress = document.getElementById('progress');
+  const btnStart = document.getElementById('btn-start');
+  const btnPause = document.getElementById('btn-pause');
+  const btnReset = document.getElementById('btn-reset');
+  const inpMin = document.getElementById('inp-min');
+  const inpSec = document.getElementById('inp-sec');
+  const statusEl = document.getElementById('status');
+
+  let total = 0;
+  let remaining = 0;
+  let interval = null;
+  let running = false;
+  let ctx = null;
+
+  function fmt(s) {
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+  }
+
+  function updateDisplay() {
+    display.textContent = fmt(remaining);
+    const pct = total > 0 ? (remaining / total) * 100 : 100;
+    progress.style.width = pct + '%';
+  }
+
+  function beep() {
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523, 659, 784, 1047];
+      notes.forEach((freq, i) => {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.type = 'sine';
+        o.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.18;
+        g.gain.setValueAtTime(0.25, t);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        o.start(t);
+        o.stop(t + 0.35);
+      });
+    } catch(e) {}
+  }
+
+  function start() {
+    if (!running) {
+      if (remaining === 0) {
+        const m = parseInt(inpMin.value) || 0;
+        const s = parseInt(inpSec.value) || 0;
+        total = m * 60 + s;
+        remaining = total;
+        if (remaining === 0) return;
+        display.classList.remove('done');
+        statusEl.textContent = '';
+      }
+      running = true;
+      inpMin.disabled = true;
+      inpSec.disabled = true;
+      btnStart.disabled = true;
+      btnPause.disabled = false;
+      statusEl.textContent = '実行中...';
+
+      interval = setInterval(() => {
+        remaining--;
+        updateDisplay();
+        if (remaining <= 0) {
+          clearInterval(interval);
+          running = false;
+          display.classList.add('done');
+          statusEl.textContent = '完了！おつかれさまでした ♡';
+          btnStart.disabled = false;
+          btnPause.disabled = true;
+          inpMin.disabled = false;
+          inpSec.disabled = false;
+          beep();
+        }
+      }, 1000);
+      updateDisplay();
+    }
+  }
+
+  function pause() {
+    if (running) {
+      clearInterval(interval);
+      running = false;
+      btnStart.disabled = false;
+      btnPause.disabled = true;
+      statusEl.textContent = '一時停止中';
+    }
+  }
+
+  function reset() {
+    clearInterval(interval);
+    running = false;
+    remaining = 0;
+    total = 0;
+    display.textContent = '00:00';
+    display.classList.remove('done');
+    progress.style.width = '100%';
+    progress.style.transition = 'none';
+    setTimeout(() => { progress.style.transition = 'width 1s linear'; }, 50);
+    statusEl.textContent = '';
+    btnStart.disabled = false;
+    btnPause.disabled = true;
+    inpMin.disabled = false;
+    inpSec.disabled = false;
+  }
+
+  btnStart.addEventListener('click', start);
+  btnPause.addEventListener('click', pause);
+  btnReset.addEventListener('click', reset);
+</script>
+</body>
+</html>
